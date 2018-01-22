@@ -76,8 +76,34 @@ class SelectorBIC(ModelSelector):
         """
         warnings.filterwarnings("ignore", category=DeprecationWarning)
 
-        # TODO implement model selection based on BIC scores
-        raise NotImplementedError
+        n_state_scores = []
+        # Iterate over the given range of hidden states to find the best model
+        for n_states in range(self.min_n_components, self.max_n_components + 1):
+
+            try:
+                model = self.base_model(n_states)
+                logL = model.score(self.X, self.lengths)
+                N = len(self.X)
+
+                # According to a Udacity slack discussion
+                # (https://ai-nd.slack.com/archives/C3TSZ56U8/p1501322009967996)
+                # p = n^2 + 2*d*n - 1
+                # where n = n_states
+                # and d = len(self.X[0])
+                p = n_states**2 + 2 * len(self.X[0]) * n_states - 1
+
+                BIC = -2 * logL + p * np.log(N)
+                n_state_scores.append((BIC, model))
+            except Exception as e:
+                print(e)
+                pass
+
+        if len(n_state_scores)==0:
+            return None
+
+        return max(n_state_scores, key=lambda x: x[0])[1]
+
+
 
 
 class SelectorDIC(ModelSelector):
@@ -105,5 +131,35 @@ class SelectorCV(ModelSelector):
     def select(self):
         warnings.filterwarnings("ignore", category=DeprecationWarning)
 
-        # TODO implement model selection using CV
-        raise NotImplementedError
+        split_method = KFold(shuffle=True, random_state=self.random_state)
+
+        n_state_scores = []
+        # Iterate over the given range of hidden states to find the best model
+        for n_states in range(self.min_n_components, self.max_n_components+1):
+
+            try:
+                cv_scores = []
+
+                if len(self.sequences) < 3:
+
+                    model = self.base_model(n_states)
+                    n_state_scores.append((model.score(self.X, self.lengths), model))
+
+                else:
+                    for cv_train_idx, cv_test_idx in split_method.split(self.sequences):
+
+                        self.X, self.lengths = combine_sequences(cv_train_idx, self.sequences)
+                        X_test, lengths_test = combine_sequences(cv_test_idx, self.sequences)
+                        model = self.base_model(n_states)
+                        cv_scores.append(model.score(X_test, lengths_test))
+
+                n_state_scores.append((np.mean(cv_scores), model))
+
+            except Exception as e:
+                print(e)
+                pass
+
+        if len(n_state_scores)==0:
+            return None
+
+        return max(n_state_scores, key=lambda x: x[0])[1]
