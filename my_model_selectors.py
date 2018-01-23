@@ -101,7 +101,7 @@ class SelectorBIC(ModelSelector):
         if len(n_state_scores)==0:
             return None
 
-        return max(n_state_scores, key=lambda x: x[0])[1]
+        return min(n_state_scores, key=lambda x: x[0])[1]
 
 
 
